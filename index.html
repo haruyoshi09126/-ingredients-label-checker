@@ -1,204 +1,104 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>子ども向け 成分チェッカー（バーコード→成分→判定）</title>
-<style>
-  :root{--bg:#f7f7f9;--card:#fff;--muted:#667;--ok:#18a957;--warn:#f5a623;--bad:#e34b4b;--brand:#2a2aff}
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.55}
-  header{position:sticky;top:0;background:#fff;border-bottom:1px solid #e9e9ef;padding:12px 16px}
-  main{max-width:1000px;margin:0 auto;padding:16px;display:grid;grid-template-columns:1fr;gap:14px}
-  @media(min-width:980px){main{grid-template-columns:1.1fr .9fr}}
-  .card{background:var(--card);border:1px solid #e9e9ef;border-radius:12px;padding:12px}
-  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  input[type="text"]{padding:10px;border:1px solid #ccd;border-radius:10px;width:220px}
-  button{padding:10px 14px;border-radius:10px;border:1px solid #d0d0e0;background:#fff;cursor:pointer}
-  button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
-  a.btn{display:inline-block;text-decoration:none;padding:10px 14px;border-radius:10px;border:1px solid #d0d0e0;background:#fff}
-  video{width:100%;border-radius:10px;background:#000}
-  .muted{color:var(--muted);font-size:12px}
-  .pill{display:inline-block;border:1px solid #ccd;border-radius:999px;padding:4px 10px;margin:4px 6px 0 0;font-size:12px;background:#eef}
-  .pill.bad{background:#ffecec;border-color:#ffc9c9;color:#a21616}
-  .pill.warn{background:#fff4e6;border-color:#ffd7a8;color:#8a5700}
-  .pill.ok{background:#eafaf1;border-color:#c7eedb;color:#0e6b3b}
-  .score{font-weight:700}
-  .note{font-size:12px;color:#566}
-  textarea{width:100%;min-height:120px;padding:10px;border:1px solid #ccd;border-radius:10px}
-  .tag{font-size:12px;padding:2px 6px;border-radius:6px;background:#f1f3ff;border:1px solid #dfe3ff}
-  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>成分チェッカー</title>
+  <style>
+    body{font-family:sans-serif;max-width:700px;margin:20px auto;padding:0 10px;}
+    textarea{width:100%;height:100px;}
+    button{padding:6px 12px;margin:8px 0;}
+    .pill{display:inline-block;padding:2px 8px;border-radius:12px;margin:2px;font-size:0.9em;}
+    .bad{background:#f88;color:#fff;}
+    .warn{background:#fd8;color:#000;}
+    .ok{background:#8d8;color:#000;}
+    .safe{background:#8cf;color:#000;}
+    .unknown{background:#ccc;color:#000;}
+    .note{font-size:0.8em;color:#555;margin-left:10px;}
+    .muted{color:#666;font-size:0.9em;}
+    .score{font-weight:bold;font-size:1.2em;}
+  </style>
 </head>
 <body>
-<header><strong>子ども向け 成分チェッカー</strong></header>
+<h2>成分チェッカー</h2>
+<p>成分表を入力して「判定」ボタンを押してください。</p>
+<textarea id="ingredients"></textarea><br>
+<button id="analyze">判定</button>
 
-<main>
-  <!-- 左：バーコード取得 & 結果 -->
-  <section class="card">
-    <h3 style="margin:6px 0">1) バーコード読み取り</h3>
-    <div class="row">
-      <button id="startScan" class="primary">カメラでスキャン</button>
-      <button id="stopScan">停止</button>
-      <span class="muted">or</span>
-      <input id="janInput" type="text" placeholder="JANコード 13桁" inputmode="numeric" pattern="[0-9]*" />
-      <button id="searchJan">検索</button>
-      <span class="muted">※iOS Safariは未対応のことが多いので手入力推奨。</span>
-    </div>
-    <video id="video" playsinline muted></video>
-    <div id="scanMsg" class="muted">カメラ非対応の端末は手入力をご利用ください。</div>
-
-    <h3 style="margin:18px 0 8px">2) 商品情報</h3>
-    <div id="productBox" class="muted">バーコードを読み取ると商品が表示されます。</div>
-
-    <h3 style="margin:18px 0 8px">3) 成分表</h3>
-    <div id="ingredientsBox" class="muted">対応商品の場合、ここに成分表が自動入力されます。未登録なら空のままです。</div>
-    <div id="buyButtons" class="btnrow"></div>
-  </section>
-
-  <!-- 右：成分判定 -->
-  <section class="card">
-    <div class="row" style="justify-content:space-between">
-      <div>
-        <strong>判定</strong>
-        <span class="tag">対象：子ども向けシャンプー/ボディソープ</span>
-      </div>
-      <button id="analyze" class="primary">判定する</button>
-    </div>
-    <p class="muted">下のテキストは編集OK。例：水、BG、グリセリン、フェノキシエタノール、香料、メチルパラベン…</p>
-    <textarea id="ingredients"></textarea>
-    <div id="result" class="muted">判定結果がここに表示されます</div>
-  </section>
-</main>
+<div id="result"></div>
 
 <script>
-/* ===== 0) DB読込（products.json） ===== */
-let PRODUCTS = {};
-async function loadDB(){
-  const res = await fetch('products.json', {cache:'no-store'});
-  if(!res.ok) throw new Error('products.json 読み込み失敗');
-  PRODUCTS = await res.json();
-}
-loadDB().catch(e=> console.error(e));
-
-/* ===== 1) バーコード取得 ===== */
-const video = document.getElementById('video');
-const scanMsg = document.getElementById('scanMsg');
-const startScanBtn = document.getElementById('startScan');
-const stopScanBtn  = document.getElementById('stopScan');
-const janInput = document.getElementById('janInput');
-const searchJanBtn = document.getElementById('searchJan');
-let stream = null, scanTimer = null, detector = null;
-
-async function startScan(){
-  if(!('BarcodeDetector' in window)){
-    scanMsg.textContent = 'この端末は BarcodeDetector 非対応です。JANコードを手入力してください。';
-    return;
-  }
-  try{ detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a'] }); }
-  catch{ scanMsg.textContent = 'バーコード検出器の初期化に失敗。手入力をご利用ください。'; return; }
-
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio:false });
-    video.srcObject = stream; await video.play();
-    scanMsg.textContent = 'バーコードを映してください。';
-    scanTimer = setInterval(async () => {
-      try{
-        const codes = await detector.detect(video);
-        if(codes?.length){
-          const code = codes[0].rawValue;
-          janInput.value = code;
-          await stopScan();
-          lookupJAN(code);
-        }
-      }catch{}
-    }, 300);
-  }catch{
-    scanMsg.textContent = 'カメラにアクセスできませんでした。権限/HTTPSを確認してください。';
-  }
-}
-async function stopScan(){
-  if(scanTimer){ clearInterval(scanTimer); scanTimer=null; }
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-  video.srcObject=null;
-  scanMsg.textContent = 'スキャン停止。手入力でも検索できます。';
-}
-startScanBtn.onclick = startScan;
-stopScanBtn.onclick  = stopScan;
-
-/* ===== 2) JAN検索 → 商品/成分/リンク ===== */
-const productBox = document.getElementById('productBox');
-const ingredientsBox = document.getElementById('ingredientsBox');
-const ingredientsEl = document.getElementById('ingredients');
-const buyButtons = document.getElementById('buyButtons');
-
-searchJanBtn.onclick = () => {
-  const code = (janInput.value||'').replace(/\D/g,'');
-  if(code.length<8){ alert('JANコードを入力してください'); return; }
-  lookupJAN(code);
-};
-janInput.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); searchJanBtn.click(); }});
-
-function lookupJAN(code){
-  const hit = PRODUCTS[code];
-  buyButtons.innerHTML = '';
-  if(!hit){
-    productBox.innerHTML = `
-      <div>未登録のJAN：<strong>${escapeHtml(code)}</strong></div>
-      <div class="muted">まだDBにありません。</div>`;
-    ingredientsBox.textContent = '（自動入力なし）';
-    ingredientsEl.value = '';
-    // 未登録でも検索は可能（go.htmlで中継）
-    buyButtons.innerHTML = `
-      <a class="btn" target="_blank" href="go.html?dest=amazon&jan=${encodeURIComponent(code)}">Amazonで検索</a>
-      <a class="btn" target="_blank" href="go.html?dest=rakuten&jan=${encodeURIComponent(code)}">楽天で検索</a>`;
-    return;
-  }
-  const cat = hit.category==='shampoo_kids'?'子ども用シャンプー':'子ども用ボディソープ';
-  productBox.innerHTML = `
-    <div><strong>${escapeHtml(hit.name)}</strong> <span class="muted">— ${escapeHtml(hit.brand||'')} / ${cat}</span></div>
-    <div class="muted">JAN: ${escapeHtml(code)}</div>`;
-  ingredientsBox.innerHTML = `<div><strong>成分（DB）</strong>：${escapeHtml(hit.ingredients)}</div>`;
-  ingredientsEl.value = hit.ingredients;
-
-  const amazonHref  = `go.html?dest=amazon&jan=${encodeURIComponent(code)}`;
-  const rakutenHref = `go.html?dest=rakuten&jan=${encodeURIComponent(code)}`;
-  buyButtons.innerHTML = `
-    <a class="btn" target="_blank" href="${amazonHref}">Amazonで見る</a>
-    <a class="btn" target="_blank" href="${rakutenHref}">楽天で見る</a>`;
-}
-
-/* ===== 3) 成分判定（子ども向け） ===== */
+/* ===== 判定ルール ===== */
 const RULES = [
   { id:'parabens', patterns:[/(\w+)?paraben/i,/パラベン/i,/メチルパラベン/i,/プロピルパラベン/i], severity:'bad', tags:['防腐剤'], notes:'パラベン系防腐剤。子ども用途では避けたい場合が多い。' },
   { id:'phenoxyethanol', patterns:[/phenoxyethanol/i,/フェノキシエタノール/i], severity:'warn', tags:['防腐剤'], notes:'一般的な防腐剤。高配合は刺激になりうる。' },
-  { id:'formaldehyde_releasers', patterns:[/DMDM\s*hydantoin/i,/imidazolidinyl urea/i,/diazolidinyl urea/i], severity:'bad', tags:['防腐剤'], notes:'ホルムアルデヒド放出型。' },
   { id:'fragrance', patterns:[/fragrance/i,/parfum/i,/香料/i], severity:'warn', tags:['香料'], notes:'乳幼児環境では無香料推奨。' },
   { id:'allergen_fragrances', patterns:[/linalool/i,/limonene/i,/citral/i,/citronellol/i,/geraniol/i,/eugenol/i], severity:'warn', tags:['香料アレルゲン'], notes:'EU表示対象の香料アレルゲン。' },
   { id:'sulfates', patterns:[/sodium\s+lauryl\s+sulfate/i,/SLS\b/i,/sodium\s+laureth\s+sulfate/i,/SLES\b/i,/ラウリル硫酸/i,/ラウレス硫酸/i], severity:'warn', tags:['界面活性剤'], notes:'高洗浄の硫酸塩系。' },
   { id:'alcohol', patterns:[/alcohol\b/i,/エタノール/i], severity:'warn', tags:['溶剤'], notes:'高配合は乾燥/刺激の可能性。' },
   { id:'bha_bht', patterns:[/\bBHA\b/i,/\bBHT\b/i], severity:'warn', tags:['酸化防止剤'], notes:'敏感肌では刺激感の報告あり。' },
   { id:'glycerin', patterns:[/glycerin/i,/グリセリン/i], severity:'ok', tags:['保湿'], notes:'保湿の基本成分。' },
-  { id:'bg', patterns:[/\bBG\b/i,/ブチレングリコール/i,/butylene\s+glycol/i], severity:'ok', tags:['保湿/溶媒'], notes:'一般的。' },
+  { id:'bg', patterns:[/\bBG\b/i,/ブチレングリコール/i,/butylene\s+glycol/i], severity:'ok', tags:['保湿/溶媒'], notes:'一般的。' }
 ];
 
+/* ===== 無害リスト（SAFE_LIST） ===== */
+const SAFE_LIST = [
+  /水/i,
+  /クエン酸/i,
+  /クエン酸Na/i,
+  /塩化Na/i,
+  /炭酸水素Na/i,
+  /グリセリン/i,
+  /\bBG\b/i,
+  /ブチレングリコール/i,
+  /プロパンジオール/i,
+  /ソルビトール/i,
+  /トコフェロール/i,
+  /アスコルビン酸/i,
+  /アロエ/i,
+  /カミツレ/i,
+  /シア脂/i,
+  /ヒアルロン酸/i,
+  /アラニン/i,
+  /グリシン/i,
+  /セリン/i
+];
+
+/* ===== 判定処理 ===== */
 const analyzeBtn = document.getElementById('analyze');
 const resultEl = document.getElementById('result');
 
 analyzeBtn.onclick = () => {
-  const text = ingredientsEl.value||'';
+  const text = document.getElementById('ingredients').value||'';
   const tokens = tokenize(text);
-  if(!tokens.length){ resultEl.innerHTML = '<div class="muted">成分が空です。DBから自動入力するか、パッケージの成分を貼り付けてください。</div>'; return; }
+
+  if(!tokens.length){
+    resultEl.innerHTML = '<div class="muted">成分が空です。</div>';
+    return;
+  }
 
   const hits = matchRules(tokens);
   const bestByToken = new Map();
   const rank = {bad:3,warn:2,ok:1};
   for(const h of hits){
     const prev = bestByToken.get(h.token);
-    if(!prev || rank[h.rule.severity] > rank[prev.rule.severity]) bestByToken.set(h.token, h);
+    if(!prev || rank[h.rule.severity] > rank[prev.rule.severity]) {
+      bestByToken.set(h.token, h);
+    }
   }
+
+  // SAFE_LIST と UNKNOWN を追加
+  tokens.forEach(tok=>{
+    if(bestByToken.has(tok)) return;
+    if(SAFE_LIST.some(r=> r.test(tok))){
+      bestByToken.set(tok, {token:tok, rule:{severity:'safe', notes:'一般的に無害とされる成分', tags:['無害']}});
+    } else {
+      bestByToken.set(tok, {token:tok, rule:{severity:'unknown', notes:'データベース未登録（評価なし）', tags:['不明']}});
+    }
+  });
+
   const sum = summarize([...bestByToken.values()]);
-  const color = sum.worst==='bad'?'var(--bad)':(sum.worst==='warn'?'var(--warn)':'var(--ok)');
+  const color = sum.worst==='bad'?'#f88':(sum.worst==='warn'?'#fd8':'#8d8');
 
   const line = tokens.map(tok => {
     const hit = bestByToken.get(tok);
@@ -206,31 +106,30 @@ analyzeBtn.onclick = () => {
   }).join(' ');
 
   const details = [...bestByToken.values()].map(h=>`
-    <li><strong>${escapeHtml(h.token)}</strong>：<span class="pill ${h.rule.severity}">${label(h.rule.severity)}</span>
+    <li><strong>${escapeHtml(h.token)}</strong>：
+      <span class="pill ${h.rule.severity}">${label(h.rule.severity)}</span>
       <div class="note">${escapeHtml(h.rule.notes)} <em>（${h.rule.tags.join(' / ')}）</em></div>
     </li>`).join('');
 
   resultEl.innerHTML = `
     <div style="border-left:6px solid ${color};padding-left:10px">
       <div class="score">総合判定：${label(sum.worst)}</div>
-      <div class="muted">ヒット数：要注意 ${sum.counts.bad} / 注意 ${sum.counts.warn} / OK ${sum.counts.ok}</div>
+      <div class="muted">ヒット数：要注意 ${sum.counts.bad} / 注意 ${sum.counts.warn} / OK ${sum.counts.ok} / 無害 ${sum.counts.safe} / 不明 ${sum.counts.unknown}</div>
     </div>
     <div style="margin:10px 0">${line}</div>
-    ${details ? `<h4>気になる成分メモ</h4><ul>${details}</ul>` : `<div class="muted">特に気になる成分は検出されませんでした。</div>`}
-    <p class="muted" style="margin-top:8px">※配合量や処方で評価は変わります。気になる場合は公式情報をご確認ください。</p>
+    <h4>成分内訳</h4><ul>${details}</ul>
   `;
 };
 
-/* ===== 共通ユーティリティ ===== */
+/* ===== 共通関数 ===== */
 function tokenize(text){
   return text.replace(/[、・]/g,',').replace(/\s+/g,' ').split(/[,;｜\n]/).map(s=>s.trim()).filter(Boolean);
 }
 function matchRules(tokens){
   const hits = [];
   tokens.forEach(tok=>{
-    const t = tok.toLowerCase();
     for(const r of RULES){
-      if(r.patterns.some(p => (p instanceof RegExp)? p.test(tok) : t.includes(String(p).toLowerCase()))){
+      if(r.patterns.some(p => p.test(tok))){
         hits.push({token:tok, rule:r});
       }
     }
@@ -238,20 +137,29 @@ function matchRules(tokens){
   return hits;
 }
 function summarize(hits){
-  const rank = {bad:3,warn:2,ok:1}; let worst='ok'; const counts={bad:0,warn:0,ok:0};
-  hits.forEach(h=>{ counts[h.rule.severity]++; if(rank[h.rule.severity]>rank[worst]) worst=h.rule.severity; });
+  const rank = {bad:3,warn:2,ok:1,safe:0,unknown:0};
+  let worst='ok';
+  const counts={bad:0,warn:0,ok:0,safe:0,unknown:0};
+  hits.forEach(h=>{
+    counts[h.rule.severity] = (counts[h.rule.severity]||0)+1;
+    if(rank[h.rule.severity]>rank[worst]) worst=h.rule.severity;
+  });
   return {worst,counts};
 }
-function label(sev){ return sev==='bad'?'要注意':(sev==='warn'?'注意':'OK'); }
-function escapeHtml(s){ return s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-function badge(text, sev){ const cls = sev==='bad'?'bad':(sev==='warn'?'warn':'ok'); return `<span class="pill ${cls}">${escapeHtml(text)}</span>`; }
-
-/* ===== 小ワザ：スペースでスキャンON/OFF ===== */
-document.addEventListener('keydown', e => {
-  if(e.code==='Space' && document.activeElement !== janInput){
-    e.preventDefault(); if(stream) stopScan(); else startScan();
+function label(sev){
+  switch(sev){
+    case 'bad': return '要注意';
+    case 'warn': return '注意';
+    case 'ok': return 'OK';
+    case 'safe': return '無害';
+    case 'unknown': return '不明';
+    default: return sev;
   }
-});
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+function badge(text, sev){
+  return `<span class="pill ${sev}">${escapeHtml(text)}</span>`;
+}
 </script>
 </body>
 </html>
