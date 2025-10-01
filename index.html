@@ -11,9 +11,8 @@
     .pill{display:inline-block;padding:2px 8px;border-radius:12px;margin:2px;font-size:0.9em;}
     .bad{background:#f88;color:#fff;}
     .warn{background:#fd8;color:#000;}
-    .ok{background:#8d8;color:#000;}
-    .safe{background:#8cf;color:#000;}
-    .unknown{background:#ccc;color:#000;}
+    .ok{background:#8d8;color:#000;} /* OK & 無害はここに統合 */
+    .unknown{background:#ccc;color:#000;} /* 不明はグレー */
     .note{font-size:0.8em;color:#555;margin-left:10px;}
     .muted{color:#666;font-size:0.9em;}
     .score{font-weight:bold;font-size:1.2em;}
@@ -41,27 +40,14 @@ const RULES = [
   { id:'bg', patterns:[/\bBG\b/i,/ブチレングリコール/i,/butylene\s+glycol/i], severity:'ok', tags:['保湿/溶媒'], notes:'一般的。' }
 ];
 
-/* ===== 無害リスト（SAFE_LIST） ===== */
+/* ===== 無害リスト ===== */
 const SAFE_LIST = [
-  /水/i,
-  /クエン酸/i,
-  /クエン酸Na/i,
-  /塩化Na/i,
-  /炭酸水素Na/i,
-  /グリセリン/i,
-  /\bBG\b/i,
-  /ブチレングリコール/i,
-  /プロパンジオール/i,
-  /ソルビトール/i,
-  /トコフェロール/i,
-  /アスコルビン酸/i,
-  /アロエ/i,
-  /カミツレ/i,
-  /シア脂/i,
-  /ヒアルロン酸/i,
-  /アラニン/i,
-  /グリシン/i,
-  /セリン/i
+  /水/i,/クエン酸/i,/クエン酸Na/i,/塩化Na/i,/炭酸水素Na/i,
+  /グリセリン/i,/\bBG\b/i,/ブチレングリコール/i,
+  /プロパンジオール/i,/ソルビトール/i,
+  /トコフェロール/i,/アスコルビン酸/i,
+  /アロエ/i,/カミツレ/i,/シア脂/i,/ヒアルロン酸/i,
+  /アラニン/i,/グリシン/i,/セリン/i
 ];
 
 /* ===== 判定処理 ===== */
@@ -71,7 +57,6 @@ const resultEl = document.getElementById('result');
 analyzeBtn.onclick = () => {
   const text = document.getElementById('ingredients').value||'';
   const tokens = tokenize(text);
-
   if(!tokens.length){
     resultEl.innerHTML = '<div class="muted">成分が空です。</div>';
     return;
@@ -87,11 +72,11 @@ analyzeBtn.onclick = () => {
     }
   }
 
-  // SAFE_LIST と UNKNOWN を追加
+  // SAFE_LIST → OK扱い / その他 → 不明
   tokens.forEach(tok=>{
     if(bestByToken.has(tok)) return;
     if(SAFE_LIST.some(r=> r.test(tok))){
-      bestByToken.set(tok, {token:tok, rule:{severity:'safe', notes:'一般的に無害とされる成分', tags:['無害']}});
+      bestByToken.set(tok, {token:tok, rule:{severity:'ok', notes:'一般的に無害とされる成分', tags:['無害']}});
     } else {
       bestByToken.set(tok, {token:tok, rule:{severity:'unknown', notes:'データベース未登録（評価なし）', tags:['不明']}});
     }
@@ -114,7 +99,7 @@ analyzeBtn.onclick = () => {
   resultEl.innerHTML = `
     <div style="border-left:6px solid ${color};padding-left:10px">
       <div class="score">総合判定：${label(sum.worst)}</div>
-      <div class="muted">ヒット数：要注意 ${sum.counts.bad} / 注意 ${sum.counts.warn} / OK ${sum.counts.ok} / 無害 ${sum.counts.safe} / 不明 ${sum.counts.unknown}</div>
+      <div class="muted">ヒット数：要注意 ${sum.counts.bad} / 注意 ${sum.counts.warn} / OK ${sum.counts.ok} / 不明 ${sum.counts.unknown}</div>
     </div>
     <div style="margin:10px 0">${line}</div>
     <h4>成分内訳</h4><ul>${details}</ul>
@@ -137,9 +122,9 @@ function matchRules(tokens){
   return hits;
 }
 function summarize(hits){
-  const rank = {bad:3,warn:2,ok:1,safe:0,unknown:0};
+  const rank = {bad:3,warn:2,ok:1,unknown:0};
   let worst='ok';
-  const counts={bad:0,warn:0,ok:0,safe:0,unknown:0};
+  const counts={bad:0,warn:0,ok:0,unknown:0};
   hits.forEach(h=>{
     counts[h.rule.severity] = (counts[h.rule.severity]||0)+1;
     if(rank[h.rule.severity]>rank[worst]) worst=h.rule.severity;
@@ -151,7 +136,6 @@ function label(sev){
     case 'bad': return '要注意';
     case 'warn': return '注意';
     case 'ok': return 'OK';
-    case 'safe': return '無害';
     case 'unknown': return '不明';
     default: return sev;
   }
