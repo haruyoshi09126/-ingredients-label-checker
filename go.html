@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>go</title>
+<script>
+function buildAmazon(jan){
+  // フロント公開でもOKなパラメータだけ使用（本格運用はWorkers等でタグ付与をサーバ側に）
+  const url = new URL('https://www.amazon.co.jp/s');
+  url.searchParams.set('k', jan);
+  return url.toString();
+}
+function buildRakuten(jan){
+  return `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(jan)}/?f=0`;
+}
+function go(){
+  const p = new URLSearchParams(location.search);
+  const dest = (p.get('dest')||'').toLowerCase();
+  const jan  = (p.get('jan')||'').replace(/\D/g,'');
+  let to = '/';
+  if(dest==='amazon') to = buildAmazon(jan);
+  else if(dest==='rakuten') to = buildRakuten(jan);
+  location.replace(to);
+}
+</script>
+</head>
+<body onload="go()">
+リダイレクト中…
+</body>
+</html>
